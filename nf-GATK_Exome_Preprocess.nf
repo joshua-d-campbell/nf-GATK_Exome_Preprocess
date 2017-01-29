@@ -34,7 +34,7 @@ DBSNP = file(params.dbsnp)
 
 logParams(params, "nextflow_parameters.txt")
 
-VERSION = "1.0"
+VERSION = "1.1"
 
 // Header log info
 log.info "========================================="
