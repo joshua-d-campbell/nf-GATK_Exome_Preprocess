@@ -94,9 +94,9 @@ gold_indels2 = High quality indel vcf file for realignment around indels
 dbsnp = dbSNP vcf used in base quality score recalibration (BQSR)
 
 #### Other workflow parameters
-output_dir: Final output directory for linked files:
+output_dir: Final output directory for linked files
 
-infile_header: Whether or not the input file has a header:
+infile_header: Whether or not the input file has a header
 
 ## 4. Config file
 The config file "nextflow.config" is included which contains all of the input paramters. To run on a cluster, you may need to change the "executor" and ".clusterOptions" for each subtask to work on your own system. If you want to change the number of cpus or memory requirements for a subtask, you will need to change the code in the main script as these requirements are currenly hard coded in the actual Linux command. To adapt NextFlow workflows to your own cluster setup, see the following link: 
