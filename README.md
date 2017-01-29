@@ -57,5 +57,18 @@ params.output_dir = "outputDir"
 Whether or not the input file has a header:
 params.infile_header = true
 
+##Cleanup
+This workflow does not currently delete the intermediate bams produced during the various steps. There after workflow completion, the follow commands will delete all unnecessary bam and indicies.
+
+`rm -v work/*/*/*.unaligned.bam
+rm -v work/*/*/*.adapters_marked.bam
+rm -v work/*/*/*.aligned.bam.bam
+rm -v work/*/*/*.dedup.bam
+rm -v work/*/*/*.dedup.bai
+rm -v work/*/*/*.realign.bam
+rm -v work/*/*/*.realign.bai`
+
+
+
 
 
