@@ -34,11 +34,11 @@ DBSNP = file(params.dbsnp)
 
 logParams(params, "nextflow_parameters.txt")
 
-VERSION = "1.0.0"
+VERSION = "1.0"
 
 // Header log info
 log.info "========================================="
-log.info "Exome-Seq : GATK Best Practices for Preprocessing v${VERSION}"
+log.info "GATK Best Practices for Exome-Seq Preprocessing v${VERSION}"
 log.info "Nextflow Version:	$workflow.nextflow.version"
 log.info "Command Line:		$workflow.commandLine"
 log.info "========================================="
