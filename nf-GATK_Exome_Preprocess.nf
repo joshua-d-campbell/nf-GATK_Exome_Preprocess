@@ -59,9 +59,9 @@ log.info "========================================="
 // Send FASTQ files to two processes from input file: FastQC and FastqToSam
 //
 // ------------------------------------------------------------------------------------------------------------
-
-infile_params = readInputFile(inputFile, inputFileHeader)
-(readPairsFastQC, readPairsFastqToSam) = Channel.from(infile_params).into(2)
+Channel.from(inputFile)
+       .splitCsv(sep: '\t', header: inputFileHeader)
+       .into { readPairsFastQC; readPairsFastqToSam }
 
 
 // ------------------------------------------------------------------------------------------------------------
@@ -210,7 +210,7 @@ process runMarkDuplicates {
     
     output:
     set indivID, sampleID, file(outfile_bam) into runMarkDuplicatesOutput
-    set file(outfile_metrics) into runMarkDuplicatesOutput_QC
+    file(outfile_metrics) into runMarkDuplicatesOutput_QC
     
     script:
     outfile_bam = sampleID + ".dedup.bam"
@@ -592,7 +592,7 @@ process runMultiQCFastq {
     file('*') from FastQCOutput.flatten().toList()
     
     output:
-    set file("fastq_multiqc*") into runMultiQCFastqOutput
+    file("fastq_multiqc*") into runMultiQCFastqOutput
     	
     script:
 
@@ -614,7 +614,7 @@ process runMultiQCLibrary {
     file('*') from runMarkDuplicatesOutput_QC.flatten().toList()
 
     output:
-    set file("library_multiqc*") into runMultiQCLibraryOutput
+    file("library_multiqc*") into runMultiQCLibraryOutput
     	
     script:
     """
@@ -637,7 +637,7 @@ process runMultiQCSample {
     file('*') from runOxoGMetricsOutput.flatten().toList()
         
     output:
-    set file("sample_multiqc*") into runMultiQCSampleOutput
+    file("sample_multiqc*") into runMultiQCSampleOutput
     	
     script:
     """
@@ -675,20 +675,6 @@ workflow.onComplete {
 // Read input file and save it into list of lists
 //
 // ------------------------------------------------------------------------------------------------------------
-def readInputFile(inputFile, is_header) { 
-  file_params = []
-  for( line in inputFile.readLines() ) {
-    if(is_header == true) {
-      header = line.split("\t").flatten()
-      is_header = false
-    } else {
-      file_params << line.split("\t").flatten()
-    }  
-}
-  return file_params
-}
-
-
 def logParams(p, n) {
   File file = new File(n)
   file.write "Parameter:\tValue\n"
