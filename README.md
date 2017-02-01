@@ -103,8 +103,18 @@ The config file "nextflow.config" is included which contains all of the input pa
 
 https://www.nextflow.io/docs/latest/executor.html
 
-## 5. File cleanup
-This workflow does not currently delete the intermediate bams produced during the various steps. There after workflow completion, the follow commands will delete all unnecessary bam and indicies.
+## 5. Program versions and dependencies
+This pipeline has been successfully run with the following versions
+  - Picard tools v2.8.0 (requires java v1.8)
+  - GATK v3.5
+  - BWA v0.7.12
+  - FastQC v0.11.3
+  - multiqc v0.9 (using python 2.7.12)
+
+**Important note:** These programs are currently loaded using the "module load" command. However, this will vary from system to system depending on your local setup. Therefore you may need to delete these commands and make sure these programs are accessible in your path.
+
+## 6. File cleanup
+This workflow does not currently delete the intermediate bams produced during the various steps. There after workflow completion, the follow commands will delete all unnecessary ".bam" and ".bai" files.
 
 ```
 rm -fv work/*/*/*.unaligned.bam
