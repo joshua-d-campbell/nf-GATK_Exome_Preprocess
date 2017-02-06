@@ -175,6 +175,8 @@ process runBWA {
 		PRIMARY_ALIGNMENT_STRATEGY=MostDistant \
 		ATTRIBUTES_TO_RETAIN=XS \
 		TMP_DIR=tmp
+		
+	rm -rf tmp	
 	"""	
 }
 
