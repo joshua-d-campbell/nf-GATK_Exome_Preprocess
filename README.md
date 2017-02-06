@@ -120,6 +120,7 @@ This workflow does not currently delete the intermediate bams produced during th
 rm -fv work/*/*/*.unaligned.bam
 rm -fv work/*/*/*.adapters_marked.bam
 rm -fv work/*/*/*.aligned.bam
+rm -fv work/*/*/*.aligned.bai
 rm -fv work/*/*/*.dedup.bam
 rm -fv work/*/*/*.dedup.bai
 rm -fv work/*/*/*.realign.bam
