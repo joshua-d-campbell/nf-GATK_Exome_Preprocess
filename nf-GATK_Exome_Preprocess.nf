@@ -32,6 +32,16 @@ BAITS = file(params.baits)
 OUTDIR = file(params.output_dir)
 DBSNP = file(params.dbsnp)
 
+// Module versions
+JAVA_MODULE = params.modules.java
+BWA_MODULE = params.modules.bwa
+FASTQC_MODULE = params.modules.fastqc
+PYTHON_MODULE = params.modules.python
+MULTIQC_MODULE = params.modules.multiqc
+SAMTOOLS_MODULE = params.modules.samtools
+R_MODULE = params.modules.r
+GCC_MODULE = params.modules.gcc
+
 logParams(params, "nextflow_parameters.txt")
 
 VERSION = "1.1"
@@ -86,7 +96,7 @@ process runFastqToSam {
     outfile = sampleID + "_" + libraryID + "_" + rgID + ".unaligned.bam"
     
     """
-    module load java/1.8.0_66
+    module load ${JAVA_MODULE}
     
 	java -Xmx5G -XX:ParallelGCThreads=1 -jar ${PICARD} FastqToSam \
 		FASTQ=${fastqR1} \
@@ -119,7 +129,7 @@ process runMarkIlluminaAdapters {
     outfile_metrics = sampleID + "_" + libraryID + "_" + rgID + "_adapters_metrics.txt"
             
     """
-    module load java/1.8.0_66
+    module load ${JAVA_MODULE}
     
 	java -Xmx5G -XX:ParallelGCThreads=1 -jar ${PICARD} MarkIlluminaAdapters \
 		I=${ubam} \
@@ -153,8 +163,8 @@ process runBWA {
     outfile_bam = sampleID + "_" + libraryID + "_" + rgID + ".aligned.bam"
 	
     """
-    module load java/1.8.0_66
-    module load bwa/0.7.12
+    module load ${JAVA_MODULE}
+    module load ${BWA_MODULE}
         
 	set -o pipefail
 	java -Dsamjdk.buffer_size=131072 -Dsamjdk.compression_level=1 -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10 -XX:ParallelGCThreads=1 -Xmx128m -jar ${PICARD} SamToFastq \
@@ -211,15 +221,16 @@ process runMarkDuplicates {
     set indivID, sampleID, aligned_bam_list from runBWAOutput_grouped_by_sample
     
     output:
-    set indivID, sampleID, file(outfile_bam) into runMarkDuplicatesOutput
+    set indivID, sampleID, file(outfile_bam), file(outfile_bai) into runMarkDuplicatesOutput
     file(outfile_metrics) into runMarkDuplicatesOutput_QC
     
     script:
     outfile_bam = sampleID + ".dedup.bam"
+    outfile_bai = sampleID + ".dedup.bai"
     outfile_metrics = sampleID + "_duplicate_metrics.txt"	
 	        
     """
-    module load java/1.8.0_66
+    module load ${JAVA_MODULE}
     
 	java -Xmx25G -XX:ParallelGCThreads=5 -Djava.io.tmpdir=tmp/ -jar ${PICARD} MarkDuplicates \
 		INPUT=${aligned_bam_list.join(" INPUT=")} \
@@ -265,9 +276,9 @@ process runRealignerTargetCreator {
     target_file = indivID + "_target_intervals.list"
 	        
     """
-    module load java/1.8.0_66
+    module load ${JAVA_MODULE}
 
-	java -Xmx15g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
+	java -Xmx15g -XX:ParallelGCThreads=5 -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T RealignerTargetCreator \
 		-R ${REF} \
 		-I ${dedup_bam_list.join(" -I ")} \
@@ -286,11 +297,11 @@ process runIndelRealigner {
  	    
     output:
     set indivID, file('*.realign.bam') into runIndelRealignerOutput mode flatten
- 
+    set indivID, file('*.bai') into runIndelRealignerOutputbai mode flatten 
     script:
             
     """
-    module load java/1.8.0_66
+    module load ${JAVA_MODULE}
 
 	java -Xmx25g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T IndelRealigner \
@@ -323,8 +334,7 @@ process runBaseRecalibrator {
 	publishDir "${OUTDIR}/${indivID}/${sampleID}/Processing/BaseRecalibrator/"
 	    
     input:
-    set indivID, sampleID, realign_bam from runIndelRealignerOutput_split
-    
+    set indivID, sampleID, realign_bam from runIndelRealignerOutput_split 
     output:
     set indivID, sampleID, realign_bam, file(recal_table) into runBaseRecalibratorOutput
     
@@ -332,7 +342,7 @@ process runBaseRecalibrator {
     recal_table = sampleID + "_recal_table.txt" 
        
     """
-    module load java/1.8.0_66
+    module load ${JAVA_MODULE}
     
 	java -XX:ParallelGCThreads=2 -Xmx25g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T BaseRecalibrator \
@@ -361,7 +371,7 @@ process runPrintReads {
     outfile_bai = sampleID + ".clean.bai"
            
     """
-    module load java/1.8.0_66
+    module load ${JAVA_MODULE}
 
 	java -XX:ParallelGCThreads=1 -Xmx25g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T PrintReads \
@@ -386,8 +396,8 @@ process runBaseRecalibratorPostRecal {
     post_recal_table = sampleID + "_post_recal_table.txt" 
        
     """
-    module load java/1.8.0_66
-    
+    module load ${JAVA_MODULE}
+
 	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T BaseRecalibrator \
 		-R ${REF} \
@@ -414,8 +424,10 @@ process runAnalyzeCovariates {
     recal_plots = sampleID + "_recal_plots.pdf" 
 
     """
-    module load java/1.8.0_66
-    
+    module load ${JAVA_MODULE}
+    module load ${GCC_MODULE}
+    module load ${R_MODULE}
+
 	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T AnalyzeCovariates \
 		-R ${REF} \
@@ -453,7 +465,7 @@ process runDepthOfCoverage {
     prefix = sampleID + "."
          
     """
-    module load java/1.8.0_66
+    module load ${JAVA_MODULE}
 
 	java -XX:ParallelGCThreads=1 -Djava.io.tmpdir=tmp/ -Xmx10g -jar ${GATK} \
 		-R ${REF} \
@@ -483,7 +495,7 @@ process runCollectMultipleMetrics {
     prefix = sampleID + "."
 
     """
-    module load java/1.8.0_66
+    module load ${JAVA_MODULE}
 
 	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectMultipleMetrics \
 		PROGRAM=MeanQualityByCycle \
@@ -519,7 +531,7 @@ process runHybridCaptureMetrics {
     outfile = sampleID + ".hybrid_selection_metrics.txt"
     
     """
-    module load java/1.8.0_66
+    module load ${JAVA_MODULE}
 
 	java -XX:ParallelGCThreads=1 -Xmx10g -Djava.io.tmpdir=tmp/ -jar $PICARD CalculateHsMetrics \
 		INPUT=${bam} \
@@ -546,7 +558,7 @@ process runOxoGMetrics {
     outfile = sampleID + ".OxoG_metrics.txt"
     
     """
-    module load java/1.8.0_66
+    module load ${JAVA_MODULE}
 
 	java -XX:ParallelGCThreads=1 -Xmx10g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectOxoGMetrics \
 		INPUT=${bam} \
@@ -573,7 +585,7 @@ process runFastQC {
     script:
 
     """
-    module load fastqc/0.11.3
+    module load ${FASTQC_MODULE}
     fastqc -t 1 -o . ${fastqR1} ${fastqR2}
     """
 }
@@ -599,8 +611,8 @@ process runMultiQCFastq {
     script:
 
     """
-    module load python/2.7.12
-    module load multiqc/0.9
+    module load ${PYTHON_MODULE}
+    module load ${MULTIQC_MODULE}
 
     multiqc -n fastq_multiqc *.zip *.html
     """
@@ -620,8 +632,8 @@ process runMultiQCLibrary {
     	
     script:
     """
-    module load python/2.7.12
-    module load multiqc/0.9
+    module load ${PYTHON_MODULE}
+    module load ${MULTIQC_MODULE}
 
     multiqc -n library_multiqc *.txt
     """
@@ -643,8 +655,8 @@ process runMultiQCSample {
     	
     script:
     """
-    module load python/2.7.12
-    module load multiqc/0.9
+    module load ${PYTHON_MODULE}
+    module load ${MULTIQC_MODULE}
 
     multiqc -n sample_multiqc *.txt
     """
