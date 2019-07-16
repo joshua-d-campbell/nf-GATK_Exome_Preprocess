@@ -211,11 +211,12 @@ process runMarkDuplicates {
     set indivID, sampleID, aligned_bam_list from runBWAOutput_grouped_by_sample
     
     output:
-    set indivID, sampleID, file(outfile_bam) into runMarkDuplicatesOutput
-    file(outfile_metrics) into runMarkDuplicatesOutput_QC
+    set indivID, sampleID, file(outfile_bam), file(outfile_bai) into runMarkDuplicatesOutput
+    set indivID, file(outfile_metrics) into runMarkDuplicatesOutput_QC
     
     script:
     outfile_bam = sampleID + ".dedup.bam"
+    outfile_bai = sampleID + ".dedup.bai"
     outfile_metrics = sampleID + "_duplicate_metrics.txt"	
 	        
     """
@@ -286,7 +287,8 @@ process runIndelRealigner {
  	    
     output:
     set indivID, file('*.realign.bam') into runIndelRealignerOutput mode flatten
- 
+    set indivID, file('*.realign.bai') into runIndelRealignerBAIOutput 
+    
     script:
             
     """
@@ -477,7 +479,7 @@ process runCollectMultipleMetrics {
     set indivID, sampleID, bam, bai from runPrintReadsOutput_for_Multiple_Metrics
 
     output:
-    file("${prefix}*") into CollectMultipleMetricsOutput mode flatten
+    set indivID, file("${prefix}*") into CollectMultipleMetricsOutput mode flatten
 
     script:       
     prefix = sampleID + "."
@@ -513,7 +515,7 @@ process runHybridCaptureMetrics {
     set indivID, sampleID, bam, bai from runPrintReadsOutput_for_HC_Metrics
 
 	output:
-	file(outfile) into HybridCaptureMetricsOutput mode flatten
+	set indivID, file(outfile) into HybridCaptureMetricsOutput mode flatten
 
     script:       
     outfile = sampleID + ".hybrid_selection_metrics.txt"
@@ -540,7 +542,7 @@ process runOxoGMetrics {
     set indivID, sampleID, bam, bai from runPrintReadsOutput_for_OxoG_Metrics
 
 	output:
-	file(outfile) into runOxoGMetricsOutput mode flatten
+	set indivID, file(outfile) into runOxoGMetricsOutput mode flatten
 
     script:       
     outfile = sampleID + ".OxoG_metrics.txt"
@@ -568,8 +570,9 @@ process runFastQC {
     set indivID, sampleID, libraryID, rgID, platform_unit, platform, platform_model, run_date, center, fastqR1, fastqR2 from readPairsFastQC
 
     output:
-    set file("*.zip"), file("*.html") into FastQCOutput
-    	
+    set indivID, file("*.zip") into FastQCOutput mode flatten
+   	file("*.html") into FastQCOutput2
+   	
     script:
 
     """
@@ -585,68 +588,79 @@ process runFastQC {
 // Plot results with multiqc
 //
 // ------------------------------------------------------------------------------------------------------------
+FastQCOutput_grouped_by_indiv = FastQCOutput.groupTuple(by: [0])
 
 process runMultiQCFastq {
-    tag "Generating fastq level summary and QC plots"
-	publishDir "${OUTDIR}/Summary/Fastq"
+    tag "${indivID}"
+	publishDir "${OUTDIR}/${indivID}/QC/Fastq"
 	    
     input:
-    file('*') from FastQCOutput.flatten().toList()
+    set indivID, zip_files from FastQCOutput_grouped_by_indiv
     
     output:
-    file("fastq_multiqc*") into runMultiQCFastqOutput
+    set file("multiqc_fastq_file_list.txt"), file("fastq_multiqc*") into runMultiQCFastqOutput
     	
     script:
-
+     
     """
     module load python/2.7.12
     module load multiqc/0.9
-
-    multiqc -n fastq_multiqc *.zip *.html
+    
+    echo -e "${zip_files.flatten().join('\n')}" > multiqc_fastq_file_list.txt
+    multiqc -n fastq_multiqc --file-list multiqc_fastq_file_list.txt
     """
 }
 
 
+runMarkDuplicatesOutput_QC_grouped_by_indiv = runMarkDuplicatesOutput_QC.groupTuple(by: [0])
 
 process runMultiQCLibrary {
-    tag "Generating library level summary and QC plots"
-	publishDir "${OUTDIR}/Summary/Library"
+    tag "${indivID}"
+	publishDir "${OUTDIR}/${indivID}/QC/Library"
 	    
     input:
-    file('*') from runMarkDuplicatesOutput_QC.flatten().toList()
+    set indivID, files from runMarkDuplicatesOutput_QC_grouped_by_indiv
 
     output:
-    file("library_multiqc*") into runMultiQCLibraryOutput
+    set file("multiqc_library_file_list.txt"), file("library_multiqc*") into runMultiQCLibraryOutput
     	
     script:
     """
     module load python/2.7.12
     module load multiqc/0.9
 
-    multiqc -n library_multiqc *.txt
+    echo -e "${files.flatten().join('\n')}" > multiqc_library_file_list.txt
+    multiqc -n library_multiqc --file-list multiqc_library_file_list.txt
     """
 }
 
 
+CollectMultipleMetricsOutput_grouped_by_indiv = CollectMultipleMetricsOutput.groupTuple(by: [0])
+HybridCaptureMetricsOutput_grouped_by_indiv = HybridCaptureMetricsOutput.groupTuple(by: [0])
+runOxoGMetricsOutput_grouped_by_indiv = runOxoGMetricsOutput.groupTuple(by: [0])
 
 process runMultiQCSample {
-    tag "Generating sample level summary and QC plots"
-	publishDir "${OUTDIR}/Summary/Sample"
+    tag "${indivID}"
+	publishDir "${OUTDIR}/${indivID}/QC/Sample"
 	    
     input:
-	file('*') from CollectMultipleMetricsOutput.flatten().toList()
-    file('*') from HybridCaptureMetricsOutput.flatten().toList()
-    file('*') from runOxoGMetricsOutput.flatten().toList()
+	set indivID, metrics_files from CollectMultipleMetricsOutput_grouped_by_indiv
+    set indivID, hybrid_files from HybridCaptureMetricsOutput_grouped_by_indiv
+    set indivID, oxog_files from runOxoGMetricsOutput_grouped_by_indiv
         
     output:
-    file("sample_multiqc*") into runMultiQCSampleOutput
+    set file("sample_multiqc*"), file("multiqc_sample_file_list.txt") into runMultiQCSampleOutput
     	
     script:
     """
     module load python/2.7.12
     module load multiqc/0.9
 
-    multiqc -n sample_multiqc *.txt
+    echo -e "${metrics_files.flatten().join('\n')}" > multiqc_sample_file_list.txt
+    echo -e "${hybrid_files.flatten().join('\n')}" >> multiqc_sample_file_list.txt
+    echo -e "${oxog_files.flatten().join('\n')}" >> multiqc_sample_file_list.txt
+            
+    multiqc -n sample_multiqc --file-list multiqc_sample_file_list.txt
     """
 }
 
