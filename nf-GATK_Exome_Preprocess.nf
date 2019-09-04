@@ -86,8 +86,6 @@ process runFastqToSam {
     outfile = sampleID + "_" + libraryID + "_" + rgID + ".unaligned.bam"
     
     """
-    module load java/1.8.0_66
-    
 	java -Xmx5G -XX:ParallelGCThreads=1 -jar ${PICARD} FastqToSam \
 		FASTQ=${fastqR1} \
 		FASTQ2=${fastqR2} \
@@ -119,14 +117,11 @@ process runMarkIlluminaAdapters {
     outfile_metrics = sampleID + "_" + libraryID + "_" + rgID + "_adapters_metrics.txt"
             
     """
-    module load java/1.8.0_66
-    
 	java -Xmx5G -XX:ParallelGCThreads=1 -jar ${PICARD} MarkIlluminaAdapters \
 		I=${ubam} \
 		O=${outfile_bam} \
 		M=${outfile_metrics} \
 		TMP_DIR=tmp
-
     """
 }
 
@@ -153,17 +148,14 @@ process runBWA {
     outfile_bam = sampleID + "_" + libraryID + "_" + rgID + ".aligned.bam"
 	
     """
-    module load java/1.8.0_66
-    module load bwa/0.7.12
-        
 	set -o pipefail
-	java -Dsamjdk.buffer_size=131072 -Dsamjdk.compression_level=1 -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10 -XX:ParallelGCThreads=1 -Xmx128m -jar ${PICARD} SamToFastq \
+	java -Dsamjdk.buffer_size=131072 -Dsamjdk.compression_level=1 -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10 -XX:ParallelGCThreads=1 -Xmx5G -jar ${PICARD} SamToFastq \
 		I=${ubamxt} \
 		FASTQ=/dev/stdout \
 		CLIPPING_ATTRIBUTE=XT CLIPPING_ACTION=2 INTERLEAVE=true NON_PF=true \
 		TMP_DIR=tmp | \
-	bwa mem -M -t 10 -p ${REF} /dev/stdin | \
-	java -XX:ParallelGCThreads=1 -Xmx4G -jar ${PICARD} MergeBamAlignment \
+	bwa mem -M -t 14 -p ${REF} /dev/stdin | \
+	java -XX:ParallelGCThreads=1 -Xmx5G -jar ${PICARD} MergeBamAlignment \
 		ALIGNED_BAM=/dev/stdin \
 		UNMAPPED_BAM=${ubamxt} \
 		OUTPUT=${outfile_bam} \
@@ -220,9 +212,7 @@ process runMarkDuplicates {
     outfile_metrics = sampleID + "_duplicate_metrics.txt"	
 	        
     """
-    module load java/1.8.0_66
-    
-	java -Xmx25G -XX:ParallelGCThreads=5 -Djava.io.tmpdir=tmp/ -jar ${PICARD} MarkDuplicates \
+	java -Xmx30g -XX:ParallelGCThreads=5 -Djava.io.tmpdir=tmp/ -jar ${PICARD} MarkDuplicates \
 		INPUT=${aligned_bam_list.join(" INPUT=")} \
 		OUTPUT=${outfile_bam} \
 		METRICS_FILE=${outfile_metrics} \
@@ -266,9 +256,7 @@ process runRealignerTargetCreator {
     target_file = indivID + "_target_intervals.list"
 	        
     """
-    module load java/1.8.0_66
-
-	java -Xmx15g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
+	java -Xmx25G -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T RealignerTargetCreator \
 		-R ${REF} \
 		-I ${dedup_bam_list.join(" -I ")} \
@@ -292,15 +280,15 @@ process runIndelRealigner {
     script:
             
     """
-    module load java/1.8.0_66
-
-	java -Xmx25g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
+	java -Xmx25G -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T IndelRealigner \
 		-R ${REF} \
 		-I ${dedup_bam_list.join(" -I ")} \
 		-targetIntervals ${target_file} \
 		-known ${GOLD1} \
 		-known ${GOLD2} \
+                -maxReads 500000 \
+                --maxReadsInMemory 500000 \
 		-nWayOut ".realign.bam"		
 	"""  
 }
@@ -334,9 +322,7 @@ process runBaseRecalibrator {
     recal_table = sampleID + "_recal_table.txt" 
        
     """
-    module load java/1.8.0_66
-    
-	java -XX:ParallelGCThreads=2 -Xmx25g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
+	java -XX:ParallelGCThreads=2 -Xmx30g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T BaseRecalibrator \
 		-R ${REF} \
 		-I ${realign_bam} \
@@ -355,22 +341,21 @@ process runPrintReads {
     set indivID, sampleID, realign_bam, recal_table from runBaseRecalibratorOutput 
 
     output:
-    set indivID, sampleID, file(outfile_bam), file(outfile_bai) into runPrintReadsOutput_for_DepthOfCoverage, runPrintReadsOutput_for_HC_Metrics, runPrintReadsOutput_for_Multiple_Metrics, runPrintReadsOutput_for_OxoG_Metrics
+    set indivID, sampleID, file(outfile_bam), file(outfile_bai), file(outfile_bai2) into runPrintReadsOutput_for_DepthOfCoverage, runPrintReadsOutput_for_HC_Metrics, runPrintReadsOutput_for_Multiple_Metrics, runPrintReadsOutput_for_OxoG_Metrics
     set indivID, sampleID, realign_bam, recal_table into runPrintReadsOutput_for_PostRecal
             
     script:
     outfile_bam = sampleID + ".clean.bam"
     outfile_bai = sampleID + ".clean.bai"
-           
+    outfile_bai2 = sampleID + ".clean.bam.bai"           
     """
-    module load java/1.8.0_66
-
 	java -XX:ParallelGCThreads=1 -Xmx25g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T PrintReads \
 		-R ${REF} \
 		-I ${realign_bam} \
 		-BQSR ${recal_table} \
 		-o ${outfile_bam}
+    samtools index ${outfile_bam}
     """
 }    
 
@@ -388,8 +373,6 @@ process runBaseRecalibratorPostRecal {
     post_recal_table = sampleID + "_post_recal_table.txt" 
        
     """
-    module load java/1.8.0_66
-    
 	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T BaseRecalibrator \
 		-R ${REF} \
@@ -416,8 +399,6 @@ process runAnalyzeCovariates {
     recal_plots = sampleID + "_recal_plots.pdf" 
 
     """
-    module load java/1.8.0_66
-    
 	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T AnalyzeCovariates \
 		-R ${REF} \
@@ -446,7 +427,7 @@ process runDepthOfCoverage {
 	publishDir "${OUTDIR}/${indivID}/${sampleID}/Processing/DepthOfCoverage"
 	    
     input:
-    set indivID, sampleID, bam, bai from runPrintReadsOutput_for_DepthOfCoverage
+    set indivID, sampleID, bam, bai, bai2 from runPrintReadsOutput_for_DepthOfCoverage
 
     output:
     file("${prefix}*") into DepthOfCoverageOutput
@@ -455,9 +436,7 @@ process runDepthOfCoverage {
     prefix = sampleID + "."
          
     """
-    module load java/1.8.0_66
-
-	java -XX:ParallelGCThreads=1 -Djava.io.tmpdir=tmp/ -Xmx10g -jar ${GATK} \
+	java -XX:ParallelGCThreads=1 -Djava.io.tmpdir=tmp/ -Xmx5g -jar ${GATK} \
 		-R ${REF} \
 		-T DepthOfCoverage \
 		-I ${bam} \
@@ -476,7 +455,7 @@ process runCollectMultipleMetrics {
  	publishDir "${OUTDIR}/${indivID}/${sampleID}/Processing/Picard_Metrics"
  	    
     input:
-    set indivID, sampleID, bam, bai from runPrintReadsOutput_for_Multiple_Metrics
+    set indivID, sampleID, bam, bai, bai2 from runPrintReadsOutput_for_Multiple_Metrics
 
     output:
     set indivID, file("${prefix}*") into CollectMultipleMetricsOutput mode flatten
@@ -485,8 +464,6 @@ process runCollectMultipleMetrics {
     prefix = sampleID + "."
 
     """
-    module load java/1.8.0_66
-
 	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectMultipleMetrics \
 		PROGRAM=MeanQualityByCycle \
 		PROGRAM=QualityScoreDistribution \
@@ -512,23 +489,22 @@ process runHybridCaptureMetrics {
 	publishDir "${OUTDIR}/${indivID}/${sampleID}/Processing/Picard_Metrics"
 	    
     input:
-    set indivID, sampleID, bam, bai from runPrintReadsOutput_for_HC_Metrics
+    set indivID, sampleID, bam, bai, bai2 from runPrintReadsOutput_for_HC_Metrics
 
 	output:
 	set indivID, file(outfile) into HybridCaptureMetricsOutput mode flatten
 
     script:       
     outfile = sampleID + ".hybrid_selection_metrics.txt"
-    
+    target_coverage = sampleID + ".target_coverage.txt"    
     """
-    module load java/1.8.0_66
-
-	java -XX:ParallelGCThreads=1 -Xmx10g -Djava.io.tmpdir=tmp/ -jar $PICARD CalculateHsMetrics \
+	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectHsMetrics \
 		INPUT=${bam} \
 		OUTPUT=${outfile} \
 		TARGET_INTERVALS=${TARGETS} \
 		BAIT_INTERVALS=${BAITS} \
 		REFERENCE_SEQUENCE=${REF} \
+		PER_TARGET_COVERAGE=${target_coverage} \
 		TMP_DIR=tmp
 	"""
 }	
@@ -539,7 +515,7 @@ process runOxoGMetrics {
 	publishDir "${OUTDIR}/${indivID}/${sampleID}/Processing/Picard_Metrics"
 	    
     input:
-    set indivID, sampleID, bam, bai from runPrintReadsOutput_for_OxoG_Metrics
+    set indivID, sampleID, bam, bai, bai2 from runPrintReadsOutput_for_OxoG_Metrics
 
 	output:
 	set indivID, file(outfile) into runOxoGMetricsOutput mode flatten
@@ -548,9 +524,7 @@ process runOxoGMetrics {
     outfile = sampleID + ".OxoG_metrics.txt"
     
     """
-    module load java/1.8.0_66
-
-	java -XX:ParallelGCThreads=1 -Xmx10g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectOxoGMetrics \
+	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectOxoGMetrics \
 		INPUT=${bam} \
 		OUTPUT=${outfile} \
 		DB_SNP=${DBSNP} \
@@ -576,7 +550,6 @@ process runFastQC {
     script:
 
     """
-    module load fastqc/0.11.3
     fastqc -t 1 -o . ${fastqR1} ${fastqR2}
     """
 }
@@ -603,9 +576,6 @@ process runMultiQCFastq {
     script:
      
     """
-    module load python/2.7.12
-    module load multiqc/0.9
-    
     echo -e "${zip_files.flatten().join('\n')}" > multiqc_fastq_file_list.txt
     multiqc -n fastq_multiqc --file-list multiqc_fastq_file_list.txt
     """
@@ -626,9 +596,6 @@ process runMultiQCLibrary {
     	
     script:
     """
-    module load python/2.7.12
-    module load multiqc/0.9
-
     echo -e "${files.flatten().join('\n')}" > multiqc_library_file_list.txt
     multiqc -n library_multiqc --file-list multiqc_library_file_list.txt
     """
@@ -653,9 +620,6 @@ process runMultiQCSample {
     	
     script:
     """
-    module load python/2.7.12
-    module load multiqc/0.9
-
     echo -e "${metrics_files.flatten().join('\n')}" > multiqc_sample_file_list.txt
     echo -e "${hybrid_files.flatten().join('\n')}" >> multiqc_sample_file_list.txt
     echo -e "${oxog_files.flatten().join('\n')}" >> multiqc_sample_file_list.txt
