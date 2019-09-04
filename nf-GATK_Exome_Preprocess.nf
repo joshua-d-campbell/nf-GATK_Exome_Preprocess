@@ -34,7 +34,7 @@ DBSNP = file(params.dbsnp)
 
 logParams(params, "nextflow_parameters.txt")
 
-VERSION = "1.1"
+VERSION = "1.2"
 
 // Header log info
 log.info "========================================="
@@ -256,7 +256,7 @@ process runRealignerTargetCreator {
     target_file = indivID + "_target_intervals.list"
 	        
     """
-	java -Xmx25G -Djava.io.tmpdir=tmp/ -jar ${GATK} \
+	java -Xmx25G -XX:ParallelGCThreads=2 -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T RealignerTargetCreator \
 		-R ${REF} \
 		-I ${dedup_bam_list.join(" -I ")} \
@@ -280,7 +280,7 @@ process runIndelRealigner {
     script:
             
     """
-	java -Xmx25G -Djava.io.tmpdir=tmp/ -jar ${GATK} \
+	java -Xmx25G -XX:ParallelGCThreads=2 -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T IndelRealigner \
 		-R ${REF} \
 		-I ${dedup_bam_list.join(" -I ")} \
@@ -349,7 +349,7 @@ process runPrintReads {
     outfile_bai = sampleID + ".clean.bai"
     outfile_bai2 = sampleID + ".clean.bam.bai"           
     """
-	java -XX:ParallelGCThreads=1 -Xmx25g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
+	java -XX:ParallelGCThreads=2 -Xmx25g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T PrintReads \
 		-R ${REF} \
 		-I ${realign_bam} \
@@ -373,7 +373,7 @@ process runBaseRecalibratorPostRecal {
     post_recal_table = sampleID + "_post_recal_table.txt" 
        
     """
-	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
+	java -XX:ParallelGCThreads=2 -Xmx5g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T BaseRecalibrator \
 		-R ${REF} \
 		-I ${realign_bam} \
@@ -399,7 +399,7 @@ process runAnalyzeCovariates {
     recal_plots = sampleID + "_recal_plots.pdf" 
 
     """
-	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
+	java -XX:ParallelGCThreads=2 -Xmx5g -Djava.io.tmpdir=tmp/ -jar ${GATK} \
 		-T AnalyzeCovariates \
 		-R ${REF} \
 		-before ${recal_table} \
@@ -436,7 +436,7 @@ process runDepthOfCoverage {
     prefix = sampleID + "."
          
     """
-	java -XX:ParallelGCThreads=1 -Djava.io.tmpdir=tmp/ -Xmx5g -jar ${GATK} \
+	java -XX:ParallelGCThreads=2 -Djava.io.tmpdir=tmp/ -Xmx5g -jar ${GATK} \
 		-R ${REF} \
 		-T DepthOfCoverage \
 		-I ${bam} \
@@ -464,7 +464,7 @@ process runCollectMultipleMetrics {
     prefix = sampleID + "."
 
     """
-	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectMultipleMetrics \
+	java -XX:ParallelGCThreads=2 -Xmx5g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectMultipleMetrics \
 		PROGRAM=MeanQualityByCycle \
 		PROGRAM=QualityScoreDistribution \
 		PROGRAM=CollectAlignmentSummaryMetrics \
@@ -498,7 +498,7 @@ process runHybridCaptureMetrics {
     outfile = sampleID + ".hybrid_selection_metrics.txt"
     target_coverage = sampleID + ".target_coverage.txt"    
     """
-	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectHsMetrics \
+	java -XX:ParallelGCThreads=2 -Xmx5g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectHsMetrics \
 		INPUT=${bam} \
 		OUTPUT=${outfile} \
 		TARGET_INTERVALS=${TARGETS} \
@@ -524,7 +524,7 @@ process runOxoGMetrics {
     outfile = sampleID + ".OxoG_metrics.txt"
     
     """
-	java -XX:ParallelGCThreads=1 -Xmx5g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectOxoGMetrics \
+	java -XX:ParallelGCThreads=2 -Xmx5g -Djava.io.tmpdir=tmp/ -jar $PICARD CollectOxoGMetrics \
 		INPUT=${bam} \
 		OUTPUT=${outfile} \
 		DB_SNP=${DBSNP} \
